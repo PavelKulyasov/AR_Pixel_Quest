@@ -56,3 +56,7 @@
 @media (min-width: 700px) {
   .quest-ui { max-width: 540px; left: 16px; bottom: 16px; border-radius: 12px; }
 }
+.quest-audio { margin-top: 12px; }
+.quest-audio-status { color: #a6ffde; font-size: 14px; }
+.quest-audio-status:empty { display: none; }
+.quest-ui [hidden] { display: none !important; }
