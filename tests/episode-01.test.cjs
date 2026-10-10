@@ -21,9 +21,9 @@ function load(relative) {
   }, {filename})
   return module.exports
 }
-const {createEpisodeController} = load('src/episodes/episode-01/controller.js')
-const {createMarkerManager} = load('src/game/marker-manager.js')
-const {episode, getView} = load('src/episodes/episode-01/config.js')
+const {createEpisodeController} = load('games/pixel-quest/episodes/episode-01/controller.js')
+const {createMarkerManager} = load('platform/ar/marker-manager.js')
+const {episode, getView} = load('games/pixel-quest/episodes/episode-01/config.js')
 const fixture = (sink) => {
   const events = []
   const controller = createEpisodeController({sink: sink || (payload => events.push(payload))})
@@ -131,10 +131,10 @@ test('throwing analytics cannot block completion; disposed controller ignores ev
 })
 test('all target metadata point to real PNG files; no Git LFS pointers', () => {
   for (const name of Object.keys(episode.targets)) {
-    const metadata = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../image-targets', name + '.json')))
+    const metadata = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../games/pixel-quest/assets/image-targets', name + '.json')))
     assert.equal(metadata.name, name)
     assert.equal(metadata.type, 'PLANAR')
-    const bytes = fs.readFileSync(path.resolve(__dirname, '..', metadata.imagePath))
+    const bytes = fs.readFileSync(path.resolve(__dirname, '../games/pixel-quest/assets', metadata.imagePath))
     assert.equal(bytes.subarray(1, 4).toString(), 'PNG')
   }
 })

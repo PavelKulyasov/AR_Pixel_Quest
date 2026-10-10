@@ -1,9 +1,26 @@
+# Основа платформы AR-квестов и Pixel Quest
+
+Общие модули находятся в `platform/`, первая игра — в `games/pixel-quest/`.
+
+- [Архитектура и структура](docs/platform/ARCHITECTURE.md).
+- [Что готово, чего не хватает и что обсудить](docs/platform/READINESS.md).
+- [Создание новой игры](docs/guides/CREATE_GAME.md).
+- [Документация Pixel Quest](games/pixel-quest/docs/README.md).
+
+Запуск: `npm.cmd run serve`. Сборка Pixel Quest: `npm.cmd run build`.
+Выбор игры: `npm.cmd run build -- --env game=pixel-quest`.
+Проверки: `npm.cmd test` и `npm.cmd run test:browser` (нужен Chrome).
+
+Ниже сохранены сведения об исходном примере 8th Wall и его лицензировании.
+
+---
+
 # A-Frame: World Effects
 
 This example allows the user to grow cacti 🌵  by tapping or clicking the ground. Showcases raycasting,
 spawning new objects, and importing a 3D model.
 
-![Cacti sprouting from the ground, in augmented reality, desktop 3D, and virtual reality](./src/assets/preview.gif)
+![Cacti sprouting from the ground, in augmented reality, desktop 3D, and virtual reality](./games/pixel-quest/assets/preview.gif)
 
 <details><summary>Try it out</summary>
 
@@ -59,3 +76,12 @@ The camera should NOT be at a height (Y) of zero. It must be set to a non-zero v
 #### Attribution
 
 Toon Cactus by [PolyChromic](https://skfb.ly/6Xvws)
+
+
+### «Побег Нулика» — полный сюжет MVP, Phase 7
+
+Откройте игру с `?episode=null-escape`, нажмите «Начать» и покажите камере маркер огня. После предупреждений Нулика красная 3D-кнопка становится активной. После аварии начинается поиск головы Нулика: поверните камеру и удерживайте голову в центральной рамке полсекунды. После поиска соберите нажатием двигатель и две руки из модели Нулика в любом порядке. После восстановления Нулика выберите энергокуб, пульсирующий два раза подряд перед длинной паузой. Затем запомните подсветку трёх символов и повторите её нажатиями. После последовательности начинается закрытие портала, короткое появление Аномалии и финал. Реализованы все шесть MVP-механик и полный сюжет; следующий этап — итоговая проверка на устройствах (Phase 8).
+
+[Архитектура](games/pixel-quest/docs/episodes/null-escape/ARCHITECTURE.md) · [Проверка на телефоне](games/pixel-quest/docs/episodes/null-escape/ACCEPTANCE_CRITERIA.md).
+
+Отладочная сборка с панелью сцен: `npm run build -- --env debug=true`. Обычная сборка без панели: `npm run build`.

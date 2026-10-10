@@ -1,0 +1,47 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const {load, fixture, step} = require('./helpers/platform-fixture.cjs')
+const {chooseMechanic} = load('platform/modules/mechanics/choose.js')
+const {createMechanicRegistry} = load('platform/core/mechanic-registry.js')
+const registry = createMechanicRegistry([chooseMechanic])
+const config = (parameters = {}) => step('choose', null, {mechanic_id:'AR-06', mechanic:'CHOOSE', content:{target_ids:['a','b','c']}, parameters:{correct_target:'b', false_targets:['a','c'], attempt_limit:null, ...parameters}, success_condition:{metric:'selected_object',op:'eq',value:'b'}})
+const setup = parameters => fixture([config(parameters)],{registry,capabilities:['objectTouch'],objectIds:['a','b','c']})
+const tap = (runner,id,interaction=id) => runner.input('input.target_touched',{target_id:id,interaction_id:interaction})
+test('CHOOSE wrong choices count once per interaction, repeat targets allowed, correct choice succeeds once', () => {
+ const {runner,events}=setup();runner.start()
+ tap(runner,'foreign');tap(runner,'a','');tap(runner,'a','first');tap(runner,'c','first')
+ assert.equal(runner.getSnapshot().mechanic.state.attempts,1)
+ tap(runner,'a','second');assert.equal(runner.getSnapshot().mechanic.state.attempts,2)
+ assert.equal(runner.getSnapshot().status,'ACTIVE')
+ tap(runner,'b','correct');tap(runner,'b','again')
+ assert.equal(runner.getSnapshot().status,'AWAITING_NEXT')
+ assert.equal(runner.getSnapshot().mechanic.state.selected_object,'b')
+ assert.equal(events.filter(e=>e.type==='mechanic.completed').length,1);runner.dispose()
+})
+test('CHOOSE limit fails on last allowed error; correct last attempt remains successful', () => {
+ for(const correct of [false,true]) {
+  const {runner}=setup({attempt_limit:2});runner.start();tap(runner,'a');tap(runner,correct?'b':'c')
+  assert.equal(runner.getSnapshot().outcome,correct?'SUCCESS':'FAIL')
+  if(!correct) assert.equal(runner.getSnapshot().mechanic.reason,'attempt_limit')
+  tap(runner,'b','late');assert.equal(runner.getSnapshot().outcome,correct?'SUCCESS':'FAIL');runner.dispose()
+ }
+})
+test('CHOOSE reset_progress clears selection without resetting errors; restart isolates stale input', () => {
+ const {runner}=setup({error_penalty:'reset_progress'});runner.start();tap(runner,'a')
+ assert.equal(runner.getSnapshot().mechanic.state.selected_object,null)
+ assert.equal(runner.getSnapshot().mechanic.state.attempts,1)
+ const old=runner.createInput('input.target_touched',{target_id:'b',interaction_id:'old'})
+ runner.restart();runner.dispatch(old);runner.pause();tap(runner,'b')
+ assert.equal(runner.getSnapshot().mechanic.state.attempts,0)
+ assert.equal(runner.getSnapshot().status,'ACTIVE');runner.resume();tap(runner,'b');assert.equal(runner.getSnapshot().outcome,'SUCCESS');runner.dispose()
+})
+test('CHOOSE validates options, limits, penalty and canonical success', () => {
+ const env={capabilities:['objectTouch'],objectIds:['a','b','c'],hintIds:[]}
+ for(const params of [{correct_target:'x'},{attempt_limit:0},{attempt_limit:1.5},{false_targets:['a','b']},{error_penalty:'points'}]) assert.throws(()=>registry.validateStep(config(params),env))
+ assert.throws(()=>registry.validateStep({...config(),content:{target_ids:['a','a']}},env))
+ assert.throws(()=>registry.validateStep({...config(),success_condition:{metric:'selected_object',op:'eq',value:'a'}},env))
+})
+test('CHOOSE timeout cannot be overturned by late correct input', () => {
+ const {runner,time}=setup({time_limit:100});runner.start();time.advance(100);tap(runner,'b')
+ assert.equal(runner.getSnapshot().outcome,'FAIL');assert.equal(runner.getSnapshot().mechanic.reason,'timeout');runner.dispose()
+})

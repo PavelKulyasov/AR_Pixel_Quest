@@ -1,0 +1,48 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const {load, fixture, step} = require('./helpers/platform-fixture.cjs')
+const {sequenceMechanic} = load('platform/modules/mechanics/sequence.js')
+const {createMechanicRegistry} = load('platform/core/mechanic-registry.js')
+const registry = createMechanicRegistry([sequenceMechanic])
+const config = parameters => step('sequence', null, {mechanic_id:'AR-07',mechanic:'SEQUENCE',content:{target_ids:['a','b']},parameters:{available_elements:['a','b'],target_sequence:['a','a','b'],sequence_length:3,display_speed:100,gap_ms:50,...parameters},success_condition:{metric:'player_sequence',op:'eq',value:['a','a','b']}})
+const setup = parameters => fixture([config(parameters)],{registry,capabilities:['objectTouch','sequencePresentation'],objectIds:['a','b']})
+const tap = (r,id,gesture) => r.input('input.target_touched',{target_id:id,interaction_id:gesture})
+const finish = r => r.input('presentation.sequence_finished',{token:r.getSnapshot().mechanic.state.presentation_token})
+test('SEQUENCE blocks early input and stale token; repeated element requires a new gesture', () => {
+ const {runner,events}=setup();runner.start();tap(runner,'a','early')
+ runner.input('presentation.sequence_finished',{token:999})
+ assert.equal(runner.getSnapshot().mechanic.state.phase,'SHOWING')
+ finish(runner);tap(runner,'a','early')
+ assert.equal(runner.getSnapshot().mechanic.progress.current,0)
+ tap(runner,'a','one');tap(runner,'a','one');tap(runner,'a','two');tap(runner,'b','three')
+ assert.equal(runner.getSnapshot().outcome,'SUCCESS')
+ tap(runner,'b','late');assert.equal(events.filter(e=>e.type==='mechanic.completed').length,1);runner.dispose()
+})
+test('SEQUENCE error clears input and changes token; limit counts errors only', () => {
+ const {runner}=setup({attempt_limit:2});runner.start();finish(runner)
+ const old=runner.getSnapshot().mechanic.state.presentation_token
+ tap(runner,'b','wrong');assert.equal(runner.getSnapshot().mechanic.state.attempts,1)
+ assert.equal(runner.getSnapshot().mechanic.state.phase,'SHOWING')
+ runner.input('presentation.sequence_finished',{token:old});tap(runner,'b','early')
+ assert.equal(runner.getSnapshot().mechanic.state.attempts,1)
+ finish(runner);tap(runner,'b','wrong2')
+ assert.equal(runner.getSnapshot().outcome,'FAIL');assert.equal(runner.getSnapshot().mechanic.reason,'attempt_limit');runner.dispose()
+})
+test('SEQUENCE replay clears partial input without penalty; restart rejects previous run', () => {
+ const {runner}=setup();runner.start();finish(runner);tap(runner,'a','one')
+ const old=runner.createInput('presentation.sequence_finished',{token:runner.getSnapshot().mechanic.state.presentation_token})
+ runner.input('presentation.sequence_replay',{})
+ assert.equal(runner.getSnapshot().mechanic.progress.current,0)
+ assert.equal(runner.getSnapshot().mechanic.state.attempts,0)
+ runner.restart();runner.dispatch(old);assert.equal(runner.getSnapshot().mechanic.state.phase,'SHOWING');runner.dispose()
+})
+test('SEQUENCE validates sequence, available targets and timing', () => {
+ const env={capabilities:['objectTouch','sequencePresentation'],objectIds:['a','b'],hintIds:[]}
+ for(const p of [{target_sequence:[]},{sequence_length:4},{available_elements:['a','a']},{display_speed:0},{gap_ms:0},{attempt_limit:-1}]) assert.throws(()=>registry.validateStep(config(p),env))
+ assert.throws(()=>registry.validateStep(config(),{...env,capabilities:['objectTouch']}))
+})
+test('SEQUENCE timeout ends showing and rejects late confirmation', () => {
+ const {runner,time}=setup({time_limit:100});runner.start();time.advance(100);finish(runner)
+ assert.equal(runner.getSnapshot().outcome,'FAIL');runner.dispose()
+})
+module.exports={setup,finish,tap}

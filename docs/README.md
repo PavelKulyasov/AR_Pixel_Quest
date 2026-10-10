@@ -1,114 +1,23 @@
-# Pixel Quest AR — Project Documentation
+# Документация репозитория
 
-## Project
+Область первой версии: однопользовательские AR-квесты по ссылке для Android и iPhone. Это согласованное направление, а не заявление о завершённой проверке всех устройств.
 
-**Marketing title:** PIXEL QUEST: НЕ ИГРА
-**Internal storyline:** Протокол №17
+- [Устройство основы платформы](platform/ARCHITECTURE.md).
+- [Анализ готовности и вопросы для обсуждения](platform/READINESS.md).
+- [Контракты компонентов и модулей](platform/MODULES.md).
+- [Карта переноса файлов](platform/MIGRATION.md).
+- [Создание новой игры](guides/CREATE_GAME.md).
+- [Документация Pixel Quest](../games/pixel-quest/docs/README.md).
+- [Идеи для развития](IDEAS.md).
+- [Задачи и подготовка карты помещения для Image Targets](guides/ROOM_MAPPING_TASKS.md).
 
-This directory contains the canonical game-design, narrative, and technical documentation for the Pixel Quest AR quest.
+Перед изменением игровой логики прочитайте документацию выбранной игры: её README, game-design/GAME_ARCHITECTURE.md, game-design/GAME_STATE.md и документы нужного эпизода. Для Pixel Quest они находятся в games/pixel-quest/docs/. Сюжет и правила принадлежат игре; общая платформа не должна импортировать игры.
 
-The documentation must be treated as the **source of truth** when implementing game mechanics.
+- [Стандартная библиотека 20 механик](platform/MECHANICS_CATALOG.md).
+- [Согласованная архитектура шести MVP-механик](platform/MECHANICS_MVP_PROPOSAL.md).
 
----
+- [Реализованный runtime, SCAN, DISCOVER, TOUCH, COLLECT, CHOOSE и SEQUENCE](platform/MECHANICS_RUNTIME.md).
 
-## Current Development Goal
+- [«Побег Нулика»: архитектура Phase 1–7 и границы реализации](../games/pixel-quest/docs/episodes/null-escape/ARCHITECTURE.md).
 
-The current development milestone is:
-
-> Build Episode 01 — «Первый сбой» as a vertical slice of the future AR quest engine.
-
-The goal is NOT to build the entire game.
-
-The goal is to validate the complete gameplay pipeline:
-
-Marker detection → AR object → interaction → game state change → next marker → final event.
-
----
-
-## Documentation Structure
-
-### `/lore`
-
-Global story rules and world mythology.
-
-These files describe facts that must remain consistent between all episodes.
-
-### `/game-design`
-
-Reusable game systems:
-
-* game state;
-* marker states;
-* episode architecture;
-* AR interaction architecture.
-
-These systems should NOT contain Episode 01-specific story logic unless explicitly stated.
-
-### `/episodes`
-
-Individual episodes.
-
-Each episode contains:
-
-* scenario;
-* technical specification;
-* dialogues;
-* state flow;
-* AR objects;
-* analytics;
-* acceptance criteria.
-
----
-
-## Development Principle
-
-Do not hard-code the entire game as one linear script.
-
-The architecture should support:
-
-```text
-Game Engine
-    +
-Episode Configuration
-    +
-Game State
-    +
-AR Objects
-    +
-UI
-```
-
-Future episodes must be able to reuse the same engine.
-
----
-
-## Current Episode
-
-Implementation priority:
-
-`/episodes/episode-01/`
-
-Episode:
-
-**Episode 01 — Первый сбой**
-
-Target duration:
-
-**5–8 minutes**
-
-Prototype duration may be:
-
-**3–5 minutes**
-
----
-
-## Important Rule for Codex
-
-Before changing gameplay logic:
-
-1. Read `GAME_ARCHITECTURE.md`.
-2. Read `GAME_STATE.md`.
-3. Read the relevant episode documentation.
-4. Preserve existing working 8th Wall functionality unless the change explicitly requires replacing it.
-5. Do not invent new lore or gameplay rules when documentation already defines them.
-6. If implementation conflicts with documentation, report the conflict before changing the intended game design.
+- [Ссылки на проекты, режимы и диагностику](../PROJECT_LINKS.md).

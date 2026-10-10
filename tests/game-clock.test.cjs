@@ -1,0 +1,27 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const {load, fakeTime} = require('./helpers/platform-fixture.cjs')
+const {createGameClock} = load('platform/core/game-clock.js')
+test('clock preserves remaining time across a long pause', () => {
+  const time = fakeTime(); const clock = createGameClock(time)
+  let calls = 0
+  clock.schedule(100, () => calls++)
+  time.advance(40); clock.pause(); clock.pause(); time.advance(5000)
+  assert.equal(clock.now(), 40); assert.equal(calls, 0)
+  clock.resume(); clock.resume(); time.advance(59)
+  assert.equal(calls, 0)
+  time.advance(1); assert.equal(calls, 1)
+  clock.dispose()
+})
+test('timers created while paused, cancelled timers and disposed clocks', () => {
+  const time = fakeTime(); const clock = createGameClock(time)
+  clock.pause()
+  let calls = 0
+  const cancel = clock.schedule(10, () => calls++)
+  cancel(); clock.schedule(20, () => calls++)
+  time.advance(100); assert.equal(calls, 0)
+  clock.resume(); time.advance(20); assert.equal(calls, 1)
+  clock.schedule(1, () => calls++); clock.dispose(); clock.dispose()
+  time.advance(100); assert.equal(calls, 1); assert.equal(time.pending(), 0)
+  assert.throws(() => clock.schedule(1, () => {}), /disposed/)
+})
