@@ -93,6 +93,16 @@ scene.addEventListener('loaded', async () => {
     await new Promise(resolve => setTimeout(resolve, 100))
     const dock = document.querySelector('.quest-ui')
     check(dock.getBoundingClientRect().height <= innerHeight/5 + 1, 'Dock exceeds 20 percent')
+    const soundIcon=document.querySelector('.quest-enable'), fullscreenIcon=document.querySelector('.quest-fullscreen')
+    check(!soundIcon.closest('.quest-carousel') && !fullscreenIcon.closest('.quest-carousel'),'Screen icons remain in carousel')
+    check(soundIcon.querySelector('svg') && fullscreenIcon.querySelector('svg'),'Control icon missing')
+    const soundRect=soundIcon.getBoundingClientRect()
+    if(!soundIcon.hidden) check(soundRect.left<30 && soundRect.top<30,'Sound icon is not top left')
+    if(!fullscreenIcon.hidden) {
+      const r=fullscreenIcon.getBoundingClientRect()
+      check(r.right>innerWidth-30 && r.bottom<=dock.getBoundingClientRect().top,'Fullscreen icon overlaps dock')
+    }
+    check(document.querySelector('.quest-content').getBoundingClientRect().bottom<=dock.getBoundingClientRect().top,'Text remains inside dock')
     const textButton = document.querySelector('.quest-text')
     const rectButton = textButton.getBoundingClientRect()
     check(Math.abs(rectButton.width - rectButton.height) < 1, 'Carousel tile is not square')

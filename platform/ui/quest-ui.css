@@ -111,3 +111,46 @@
   border-radius: 8px;
   font-size: 16px;
 }
+
+/* Camera overlay: only the action rail occupies the bottom dock. */
+.quest-ui { overflow: visible; justify-content: flex-end; height: auto; min-height: calc(var(--tile) + 16px + env(safe-area-inset-bottom)); max-height: none; }
+.quest-content {
+  position: fixed; left: max(12px, env(safe-area-inset-left));
+  bottom: calc(var(--tile) + 82px + env(safe-area-inset-bottom));
+  width: min(76vw, 440px); max-height: 52dvh;
+  padding: 0; overflow: hidden; pointer-events: none;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  text-shadow: 0 1px 3px #000;
+}
+.quest-content > div, .quest-content > p { flex: 0 0 auto; margin: 0; }
+.quest-message-line {
+  display: block; width: fit-content; max-width: 100%; box-sizing: border-box;
+  margin: 4px 0; padding: 6px 10px; border-radius: 8px;
+  background: #071321db; color: #f1f7ff;
+  font: 500 clamp(14px, 2dvh, 18px)/1.4 system-ui, sans-serif;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  animation: quest-message-life 5s both;
+}
+.quest-character-line { color: #a6ffde; }
+.quest-task-line { color: #93e7ff; font-weight: 650; }
+.quest-status-line, .quest-fullscreen-status-line { color: #ffdc95; }
+.quest-screen-control {
+  position: fixed; z-index: 25; width: 48px; height: 48px;
+  display: grid; place-items: center; padding: 10px;
+  border: 1px solid #93e7ff80; border-radius: 50%;
+  background: #071321dc; color: #f1f7ff; cursor: pointer; touch-action: manipulation;
+}
+.quest-screen-control svg { width: 26px; height: 26px; pointer-events: none; }
+.quest-screen-control:focus-visible { outline: 3px solid #ffdc95; outline-offset: 3px; }
+.quest-enable { top: max(12px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left)); }
+.quest-fullscreen { right: max(12px, env(safe-area-inset-right)); bottom: calc(var(--tile) + 28px + env(safe-area-inset-bottom)); }
+@keyframes quest-message-life {
+  0% { opacity: 0; transform: translateY(22px); }
+  7%, 90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .quest-message-line { animation: none; }
+}
+
+.quest-ui[data-show-text='false'] .quest-system-line, .quest-ui[data-show-text='false'] .quest-character-line { display: none; }

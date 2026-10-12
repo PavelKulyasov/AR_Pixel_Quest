@@ -4,13 +4,16 @@ const vm = require('node:vm')
 const assert = require('node:assert/strict')
 class Element {
   constructor() { this.nodes = {}; this.children = []; this.events = {}; this.hidden = false; this.textContent = '' }
-  setAttribute() {}
-  appendChild(child) { this.children.push(child) }
+  setAttribute(key, value) { (this.attributes ||= {})[key] = value }
+  getAttribute(key) { return this.attributes?.[key] }
+  get textContent() { return this.children.length ? this.children.map(child => child.textContent).join('') : this.value || '' }
+  set textContent(value) { this.value = value; this.children = [] }
+  appendChild(child) { child.remove(); child.removed = false; child.parent = this; this.children.push(child) }
   replaceChildren() { this.children = [] }
   addEventListener(type, handler) { this.events[type] = handler }
   removeEventListener(type) { delete this.events[type] }
   querySelector(selector) { return this.nodes[selector] ||= new Element() }
-  remove() { this.removed = true }
+  remove() { this.removed = true; if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null }
 }
 function fixture(supported = true, options = {}, setupDocument = () => {}) {
   const document = new Element()
@@ -20,7 +23,7 @@ function fixture(supported = true, options = {}, setupDocument = () => {}) {
   const queue = []
   const synth = {getVoices: () => [{lang: 'ru-RU'}], cancel: () => {queue.length = 0}, resume() {}, speak: u => queue.push(u)}
   const effects = {unlock() {}, stop() {}, dispose() {}, play(name, done) { done() }}
-  const context = {createButtonCarousel: () => ({refresh() {}, dispose() {}}), options, createPixelAudio: () => effects, document, window: supported ? {speechSynthesis: synth, SpeechSynthesisUtterance: function(text) {this.text = text}} : {}, setTimeout: () => 1, clearTimeout() {}}
+  const context = {createButtonCarousel: () => ({refresh() {}, dispose() {}}), options, createPixelAudio: () => effects, document, window: supported ? {speechSynthesis: synth, SpeechSynthesisUtterance: function(text) {this.text = text}} : {}, setTimeout: options.timers?.setTimer || (() => 1), clearTimeout: options.timers?.clearTimer || (() => {})}
   vm.createContext(context)
   vm.runInContext(fs.readFileSync(require.resolve('../platform/ui/quest-ui.js'), 'utf8').replace(/^import[^\n]*\n/m, '').replace('export function', 'function') + '\nthis.ui = createUI(() => {}, {createAudio: createPixelAudio, ...options})', context)
   return {ui: context.ui, root: document.body.children[0], document, queue, effects}
@@ -107,12 +110,12 @@ test('fullscreen requests the document from a tap, tracks browser exit and remov
   assert.equal(calls, 0)
   await button.events.click()
   assert.equal(calls, 1)
-  assert.equal(button.textContent, 'Выйти из полного экрана')
+  assert.equal(button.getAttribute('aria-label'), 'Выйти из полного экрана')
   await button.events.click()
-  assert.equal(button.textContent, 'На весь экран')
+  assert.equal(button.getAttribute('aria-label'), 'На весь экран')
   await button.events.click()
   f.document.fullscreenElement = null; f.document.events.fullscreenchange()
-  assert.equal(button.textContent, 'На весь экран')
+  assert.equal(button.getAttribute('aria-label'), 'На весь экран')
   f.ui.dispose()
   assert.equal(f.document.events.fullscreenchange, undefined)
   assert.equal(f.document.events.webkitfullscreenchange, undefined)
@@ -132,4 +135,27 @@ test('unsupported fullscreen and rejected requests leave the game UI usable', as
   f.ui.render({task: 'Continue'})
   assert.equal(f.root.querySelector('.quest-task').textContent, 'Continue')
   f.ui.dispose()
+})
+
+test('overlay lines expire individually after five seconds and dispose cancels pending lines', () => {
+  const {fakeTime} = require('./helpers/platform-fixture.cjs')
+  const timers = fakeTime()
+  const f = fixture(false, {timers})
+  f.ui.render({system:'Первая\nВторая', showText:true})
+  const box=f.root.querySelector('.quest-system'), first=box.children[0], second=box.children[1]
+  assert.equal(second.hidden,true)
+  timers.advance(200)
+  assert.equal(second.hidden,false)
+  f.ui.render({character:'Новая реплика',showText:true})
+  assert.equal(first.removed,false,'A new view removed previous text early')
+  timers.advance(4799)
+  assert.equal(first.removed,false)
+  timers.advance(1)
+  assert.equal(first.removed,true)
+  assert.equal(second.removed,false)
+  timers.advance(200)
+  assert.equal(second.removed,true)
+  f.ui.render({system:'Третья\nЧетвёртая',showText:true})
+  f.ui.dispose()
+  assert.equal(timers.pending(),0)
 })

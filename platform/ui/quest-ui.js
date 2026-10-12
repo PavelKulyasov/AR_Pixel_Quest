@@ -8,8 +8,45 @@ export function createUI(onAction, {
   const root = document.createElement('section')
   root.className = 'quest-ui'
   root.setAttribute('aria-label', title)
-  root.innerHTML = '<div class="quest-content" tabindex="0" aria-label="Задание и сообщения"><div class="quest-task"></div><p class="quest-system" hidden></p><p class="quest-character" hidden></p><p class="quest-audio-status" role="status"></p><p class="quest-status" role="status"></p><p class="quest-fullscreen-status" role="status"></p></div><div class="quest-carousel" aria-label="Кнопки: листайте влево и вправо, нажимайте центральную"><button type="button" class="quest-search-toggle" hidden aria-expanded="false">Показать инструкцию</button><div class="quest-panel"><div class="quest-actions"></div></div><div class="quest-actions quest-audio"><button type="button" class="quest-enable">Включить озвучку</button><button type="button" class="quest-repeat" hidden>Повторить реплику</button><button type="button" class="quest-text">Показать текст</button><button type="button" class="quest-fullscreen" aria-pressed="false">На весь экран</button></div></div>'
+  root.innerHTML = '<div class="quest-content" aria-label="Задание и сообщения" aria-live="polite"><div class="quest-message-history"></div><div class="quest-task"></div><p class="quest-system" hidden></p><p class="quest-character" hidden></p><p class="quest-audio-status" role="status"></p><p class="quest-status" role="status"></p><p class="quest-fullscreen-status" role="status"></p></div><div class="quest-carousel" aria-label="Кнопки: листайте влево и вправо, нажимайте центральную"><button type="button" class="quest-search-toggle" hidden aria-expanded="false">Показать инструкцию</button><div class="quest-panel"><div class="quest-actions"></div></div><div class="quest-actions quest-audio"><button type="button" class="quest-repeat" hidden>Повторить реплику</button><button type="button" class="quest-text">Показать текст</button></div></div><button type="button" class="quest-enable quest-screen-control" aria-label="Включить озвучку" aria-pressed="false"></button><button type="button" class="quest-fullscreen quest-screen-control" aria-label="На весь экран" aria-pressed="false"></button>'
   document.body.appendChild(root)
+  const rowTimers = new Set()
+  const history = root.querySelector('.quest-message-history')
+  const schedule = (fn, delay) => {
+    const timer = setTimeout(() => { rowTimers.delete(timer); fn() }, delay)
+    rowTimers.add(timer)
+  }
+  function message(node, value) {
+    // Keep previous lines until their own five seconds expire, even across new views.
+    for (const row of [...node.children]) history.appendChild(row)
+    node.replaceChildren()
+    const context = document.createElement('canvas').getContext?.('2d')
+    const width = Math.min((window.innerWidth || 390) * .76, 440) - 20
+    if (context) context.font = '500 ' + Math.max(14, Math.min(18, (window.innerHeight || 700) * .02)) + 'px system-ui'
+    const lines = []
+    for (const paragraph of String(value || '').split('\n').filter(line => line.trim())) {
+      let line = ''
+      for (const word of paragraph.match(/\S+\s*/g) || []) {
+        if (line && context && context.measureText(line + word).width > width) { lines.push(line); line = '' }
+        line += word
+      }
+      lines.push(line)
+    }
+    lines.forEach((line, index) => {
+      const row = document.createElement('span')
+      row.className = 'quest-message-line ' + node.className + '-line'
+      row.textContent = line + (index < lines.length - 1 ? '\n' : '')
+      row.hidden = index > 0
+      node.appendChild(row)
+      if (index > 0) schedule(() => { row.hidden = false }, index * 200)
+      schedule(() => row.remove(), index * 200 + 5000)
+    })
+  }
+  const icon = (button, label, paths) => {
+    button.setAttribute('aria-label', label)
+    button.setAttribute('title', label)
+    button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + paths + '</svg>'
+  }
   const carousel = createButtonCarousel(root.querySelector('.quest-carousel'))
   const searchToggle = root.querySelector('.quest-search-toggle')
   const panelContent = root.querySelector('.quest-content')
@@ -45,6 +82,10 @@ export function createUI(onAction, {
     searchToggle.textContent = searchExpanded ? 'Вернуться к поиску' : 'Показать инструкцию'
     searchToggle.setAttribute('aria-expanded', String(searchExpanded))
     searchFrame.hidden = !active || searchExpanded
+    if (active && searchExpanded) {
+      showText = true; updateText()
+      message(task, current.task); message(system, current.system); message(character, current.character)
+    }
     positionSearchFrame()
     carousel.refresh(active ? searchToggle : null)
   }
@@ -81,23 +122,25 @@ export function createUI(onAction, {
     if (disposed) return
     const active = !!fullscreenElement()
     fullscreenButton.hidden = !fullscreenAvailable
-    fullscreenButton.textContent = active ? 'Выйти из полного экрана' : 'На весь экран'
+    icon(fullscreenButton, active ? 'Выйти из полного экрана' : 'На весь экран', active
+      ? '<path d="M9 3v6H3m12-6v6h6M3 15h6v6m6 0v-6h6"/>'
+      : '<path d="M9 3H3v6m12-6h6v6M3 15v6h6m6 0h6v-6"/>')
     fullscreenButton.setAttribute('aria-pressed', String(active))
-    fullscreenStatus.textContent = fullscreenAvailable ? '' : 'Этот браузер не поддерживает полный экран для страницы.'
+    message(fullscreenStatus, fullscreenAvailable ? '' : 'Этот браузер не поддерживает полный экран для страницы.')
     positionSearchFrame()
     carousel.refresh()
   }
   const toggleFullscreen = async () => {
     if (disposed || !fullscreenAvailable || fullscreenButton.disabled) return
     fullscreenButton.disabled = true
-    fullscreenStatus.textContent = ''
+    message(fullscreenStatus, '')
     try {
       // Request the whole document so camera, AR canvas and HTML UI stay together.
       if (fullscreenElement()) await exitFullscreen.call(document)
       else await requestFullscreen.call(page, {navigationUI: 'hide'})
       updateFullscreen()
     } catch (_) {
-      if (!disposed) fullscreenStatus.textContent = 'Браузер не разрешил переключить полный экран. Откройте игру напрямую в браузере и попробуйте ещё раз.'
+      if (!disposed) message(fullscreenStatus, 'Браузер не разрешил переключить полный экран. Откройте игру напрямую в браузере и попробуйте ещё раз.')
     } finally {
       if (!disposed) fullscreenButton.disabled = false
     }
@@ -107,6 +150,7 @@ export function createUI(onAction, {
   document.addEventListener('webkitfullscreenchange', updateFullscreen)
   updateFullscreen()
   function updateText() {
+    root.setAttribute('data-show-text', String(showText))
     system.hidden = character.hidden = !showText
     text.textContent = showText ? 'Скрыть текст' : 'Показать текст'
     carousel.refresh()
@@ -122,7 +166,7 @@ export function createUI(onAction, {
     stopSpeech()
     showText = true
     updateText()
-    audioStatus.textContent = 'Не удалось воспроизвести голос. Нажмите «Повторить реплику» или прочитайте текст.'
+    message(audioStatus, 'Не удалось воспроизвести голос. Нажмите «Повторить реплику» или прочитайте текст.')
   }
   function speak() {
     stopSpeech()
@@ -132,12 +176,12 @@ export function createUI(onAction, {
     const lines = [['Система', current.system, current.systemCue || 'notification'], ['Персонаж', current.character, 'character']].filter(([, line]) => line)
     repeat.hidden = !lines.length
     carousel.refresh()
-    audioStatus.textContent = ''
+    message(audioStatus, '')
     let index = 0
     const playNext = () => {
       if (token !== generation || disposed) return
       const utterance = pending[index]
-      if (!utterance) { audioStatus.textContent = ''; return }
+      if (!utterance) { message(audioStatus, ''); return }
       const start = () => {
         if (token !== generation || disposed) return
         watchdog = setTimeout(fail, 10000)
@@ -158,7 +202,7 @@ export function createUI(onAction, {
         if (token !== generation || disposed) return
         clearTimeout(watchdog)
         watchdog = setTimeout(fail, 60000)
-        audioStatus.textContent = speaker + ' говорит…'
+        message(audioStatus, speaker + ' говорит…')
       }
       utterance.onerror = () => { if (token === generation && !disposed) fail() }
       utterance.onend = () => {
@@ -166,7 +210,7 @@ export function createUI(onAction, {
         clearTimeout(watchdog)
         if (utterance === pending[pending.length - 1]) {
           pending = []
-          audioStatus.textContent = ''
+          message(audioStatus, '')
         } else { index += 1; playNext() }
       }
       return utterance
@@ -174,27 +218,34 @@ export function createUI(onAction, {
     if (!pending.length) return
     playNext()
   }
+  function updateSoundIcon() {
+    icon(enable, enabled ? 'Выключить озвучку' : 'Включить озвучку', '<path d="M11 5 6 9H3v6h3l5 4Z"/>' + (enabled
+      ? '<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>'
+      : '<path d="m16 9 5 6m0-6-5 6"/>'))
+    enable.setAttribute('aria-pressed', String(enabled))
+  }
+  updateSoundIcon()
   enable.addEventListener('click', () => {
     enabled = !enabled
-    enable.textContent = enabled ? 'Выключить озвучку' : 'Включить озвучку'
+    updateSoundIcon()
     repeat.hidden = !enabled
     if (enabled) { effects.unlock(); speak() }
     else {
       stopSpeech()
-      audioStatus.textContent = 'Озвучка выключена.'
+      message(audioStatus, 'Озвучка выключена.')
       showText = true
       updateText()
     }
   })
   repeat.addEventListener('click', () => { effects.unlock(); speak() })
-  text.addEventListener('click', () => { showText = !showText; updateText() })
+  text.addEventListener('click', () => { showText = !showText; updateText(); if (showText) { message(task, current.task); message(system, current.system); message(character, current.character) } })
   enable.hidden = !supported
-  audioStatus.textContent = supported ? 'Нажмите «Включить озвучку», чтобы услышать реплики.' : 'Озвучка недоступна в этом браузере. Реплики показаны текстом.'
+  message(audioStatus, supported ? 'Нажмите значок звука слева вверху, чтобы услышать реплики.' : 'Озвучка недоступна в этом браузере. Реплики показаны текстом.')
   updateText()
   const visibility = () => {
     if (document.hidden) {
       stopSpeech()
-      if (enabled) audioStatus.textContent = 'Нажмите «Повторить реплику», чтобы продолжить прослушивание.'
+      if (enabled) message(audioStatus, 'Нажмите «Повторить реплику», чтобы продолжить прослушивание.')
     }
   }
   document.addEventListener('visibilitychange', visibility)
@@ -214,9 +265,9 @@ export function createUI(onAction, {
       current = view
       if (view.showText) { showText = true; updateText() }
       panelContent.scrollTop = 0
-      task.textContent = view.task || ''
-      system.textContent = view.system || ''
-      character.textContent = view.character || ''
+      message(task, view.task || '')
+      message(system, view.system || '')
+      message(character, view.character || '')
       actions.replaceChildren()
       for (const choice of view.actions || []) {
         const button = document.createElement('button')
@@ -228,9 +279,11 @@ export function createUI(onAction, {
       speak()
       carousel.refresh(searchRadius !== null ? searchToggle : actions.querySelector('button'))
     },
-    tracking(message = '') { status.textContent = message },
+    tracking(value = '') { message(status, value) },
     dispose() {
       disposed = true
+      for (const timer of rowTimers) clearTimeout(timer)
+      rowTimers.clear()
       carousel.dispose()
       stopSpeech()
       effects.dispose()
