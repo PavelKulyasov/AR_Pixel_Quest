@@ -3,7 +3,7 @@ import {chooseConfig} from './choose-config'
 import {collectConfig} from './collect-config'
 const object = (id, visual, color, x, y, z) => ({id: 'null_escape_' + id, visual, color, marker_id: 'START_MARKER', offset: {x, y, z}})
 export const objects = {
-  terminal_display: object('terminal_display', 'terminal_display', '#57c9ff', 0, .37, .11),
+  terminal_display: object('terminal_display', 'terminal_display', '#57c9ff', -.05, .47, .245),
   anomaly_silhouette: object('anomaly_silhouette', 'silhouette', '#050414', -.85, .45, -.04),
   ...Object.fromEntries(sequenceConfig.symbols.map(symbol => [symbol.id, {...symbol, id: 'null_escape_' + symbol.id, marker_id: 'START_MARKER'}])),
   ...Object.fromEntries(chooseConfig.cores.map(core => [core.id, {...core, id: 'null_escape_' + core.id, marker_id: 'START_MARKER'}])),
@@ -12,6 +12,6 @@ export const objects = {
   null_head: object('null_head', 'head', '#89e8ff', 2.5, .55, 0),
   terminal: object('terminal', 'terminal', '#36bed6', 0, 0, 0),
   null: object('null', 'null', '#89e8ff', .75, .4, 0),
-  red_button: object('red_button', 'button', '#ff303b', 0, .18, .2),
+  red_button: object('red_button', 'button', '#ff303b', 0, .13, .3),
   portal: object('portal', 'portal', '#b557ff', -.85, .45, -.1),
 }

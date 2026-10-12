@@ -29,9 +29,10 @@ const bundle = '(function(){const factories={' + [...modules].map(([id, code]) =
   '};const cache={};function require(id){if(!cache[id]){const m=cache[id]={exports:{}};factories[id](m,m.exports,require)}return cache[id].exports};window.nullEscapeComponent=require(' +
   JSON.stringify(entry) + ').nullEscapeComponent;})();'
 fs.writeFileSync(path.join(out, 'bundle.js'), bundle)
+fs.writeFileSync(path.join(out, 'model-fixtures.js'), 'window.propFiles=' + JSON.stringify(Object.fromEntries(['Nulik','button','portal','terminal'].map(name => ['assets/'+name+'-mobile.glb', 'data:model/gltf-binary;base64,'+fs.readFileSync(path.join(root,'games/pixel-quest/assets',name+'-mobile.glb')).toString('base64')]))) + ';')
 const aframe = pathToFileURL(path.join(root, 'external/scripts/8frame-1.5.0.min.js')).href
 fs.writeFileSync(path.join(out, 'index.html'), `<!doctype html><html><head><meta charset="utf-8">
-<style>${fs.readFileSync(path.join(root, "platform/ui/quest-ui.css"), "utf8")}${fs.readFileSync(path.join(root, "games/pixel-quest/styles.css"), "utf8")}</style><script src="${aframe}"></script><script src="./bundle.js"></script>
+<style>${fs.readFileSync(path.join(root, "platform/ui/quest-ui.css"), "utf8")}${fs.readFileSync(path.join(root, "games/pixel-quest/styles.css"), "utf8")}</style><script src="${aframe}"></script><script src="./bundle.js"></script><script src="./model-fixtures.js"></script>
 </head><body><pre id="result">PENDING</pre>
 <script>
 window.addEventListener('error', event => { document.getElementById('result').textContent = 'FAIL: ' + event.message })
@@ -43,7 +44,8 @@ const originalError=console.error
 console.error=(...args)=>{modelDiagnostics.push(args.map(String).join(' ').slice(0,400));originalError(...args)}
 window.addEventListener('unhandledrejection',event=>modelDiagnostics.push(String(event.reason)))
 // file:// fixtures cannot fetch GLBs in every Chrome version; feed the real asset bytes to the loader.
-AFRAME.THREE.DefaultLoadingManager.setURLModifier(url => (modelDiagnostics.push(url.slice(0,120)), url === 'assets/Nulik-mobile.glb') ? 'data:model/gltf-binary;base64,${fs.readFileSync(path.join(root, 'games/pixel-quest/assets/Nulik-mobile.glb')).toString('base64')}' : url)
+const propFiles = window.propFiles
+AFRAME.THREE.DefaultLoadingManager.setURLModifier(url => {modelDiagnostics.push(url.slice(0,120));return propFiles[url] || url})
 AFRAME.registerComponent('null-escape', window.nullEscapeComponent)
 const scene = document.createElement('a-scene')
 scene.setAttribute('embedded', '')
@@ -52,6 +54,8 @@ scene.innerHTML = '<a-camera position="0 0 4"></a-camera>'
 document.body.appendChild(scene)
 const check = (condition, message) => { if (!condition) throw new Error(message) }
 scene.addEventListener('loaded', async () => {
+  // Real meshes/raycast and lifecycle; visual rendering is checked separately in the model preview.
+  scene.renderer.render = () => {}
  try {
   scene.setAttribute('null-escape', '')
   const component = scene.components['null-escape'], runner = component.runner
@@ -81,7 +85,13 @@ scene.addEventListener('loaded', async () => {
   const terminal=document.getElementById('null_escape_terminal')
   const button=document.getElementById('null_escape_red_button')
   const actor=document.getElementById('null_escape_null')
-  check(terminal.object3D.visible && button.object3D.visible && actor.object3D.visible,'Missing placeholders')
+  check(terminal.object3D.visible && button.object3D.visible && actor.object3D.visible,'Missing scene objects')
+  for(let i=0;i<300 && [terminal,button].some(el=>el.firstElementChild.object3D.userData.propLoadStatus!=='ready');i++) await wait(100)
+  for(const el of [terminal,button]) {
+    check(el.firstElementChild.object3D.userData.propLoadStatus==='ready','Prop GLB did not load')
+    check(el.querySelector('[data-prop-model]').getObject3D('mesh'),'Prop has no real mesh')
+    check(!el.querySelector('a-box'),'Test geometry retained in prop')
+  }
   for (let i=0;i<100 && !actor.firstElementChild.object3D.userData.nulik?.fitted;i++) { await wait(100); component.tick(0) }
   const modelData=actor.firstElementChild.object3D.userData.nulik
   check(modelData?.fitted,'Nulik GLB did not load or fit: mesh='+!!actor.querySelector('[data-nulik-model]').getObject3D('mesh')+', bounds='+!!modelData+', loader='+modelDiagnostics.join('; '))
@@ -155,6 +165,7 @@ scene.addEventListener('loaded', async () => {
   hidden=false;document.dispatchEvent(new Event('visibilitychange'))
   await wait(10000);tap();await wait(7500)
   check(document.getElementById('null_escape_portal')?.object3D.visible,'Portal absent')
+  check(document.getElementById('null_escape_portal').firstElementChild.object3D.userData.propLoadStatus==='ready','Portal GLB not loaded')
   await wait(4800);component.tick(0)
   const pausedParts=Object.values(modelData.parts).map(part=>part.pivot.position.clone())
   hidden=true;document.dispatchEvent(new Event('visibilitychange'))
@@ -376,6 +387,8 @@ scene.addEventListener('loaded', async () => {
   check(events.length===count && runner.getSnapshot().status==='DISPOSED','Timers survive dispose')
   check(released===3,'Terminal GPU resources leaked')
   check(modelDiagnostics.filter(url=>url==='assets/Nulik-mobile.glb').length===1,'Character parts downloaded the GLB more than once')
+  for(const name of ['button','portal','terminal']) check(modelDiagnostics.filter(url=>url==='assets/'+name+'-mobile.glb').length===1,'Prop loaded more than once: '+name)
+  check(!document.querySelector('.null-prop-status'),'Prop loading notice leaked')
   check(!document.querySelector('.null-escape-glitch'),'Glitch overlay leaked')
   check(!document.querySelector('.null-model-status'),'Model loading notice leaked')
   check(!document.querySelector('.quest-ui') && !document.getElementById('null_escape_terminal'),'Cleanup failed')
@@ -386,7 +399,7 @@ scene.addEventListener('loaded', async () => {
 const browser = process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
 const result = spawnSync(browser, [
   '--headless', '--window-size=390,844', '--disable-gpu', '--no-first-run', '--allow-file-access-from-files',
-  '--user-data-dir=' + path.join(out, 'profile'), '--dump-dom', '--virtual-time-budget=400000',
+  '--user-data-dir=' + path.join(out, 'profile-' + process.pid), '--dump-dom', '--virtual-time-budget=400000',
   pathToFileURL(path.join(out, 'index.html')).href,
 ], {encoding: 'utf8', timeout: 80000, maxBuffer: 4 * 1024 * 1024})
 const status = (result.stdout || '').match(/<pre id="result">([\s\S]*?)<\/pre>/)?.[1]

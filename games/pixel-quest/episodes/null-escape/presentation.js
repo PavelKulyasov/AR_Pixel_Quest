@@ -1,3 +1,4 @@
+import {createPropLoading} from './prop-model'
 import {createNulikGestures} from './nulik-gestures'
 import {createNulikBreakup} from './nulik-breakup'
 import {createNulikFraming, createNulikLoading} from './nulik-model'
@@ -18,6 +19,7 @@ import {observeNullEscape} from './telemetry'
 export function createPresentation({runner, ui, content, objects, scene, show, hide}) {
   const fitNulik = createNulikFraming(objects, scene)
   const modelLoading = createNulikLoading(objects)
+  const propLoading = createPropLoading(objects)
   const breakup = createNulikBreakup(objects)
   let levitationStopped = false
   let hintLevel = 0
@@ -86,7 +88,7 @@ export function createPresentation({runner, ui, content, objects, scene, show, h
   const choice = createChoicePresentation({runner, ui, objects, audio, content, actions})
   return {unlock: () => audio.unlock(),
     tick: now => {
-      fitNulik(); modelLoading.tick()
+      fitNulik(); modelLoading.tick(); propLoading.tick()
       for (const id of ['null', 'null_assembled']) {
         if (id === 'null' && levitationStopped) continue
         if (objects.getObject3D(id)?.visible) objects.getVisual3D(id)?.userData.nulik?.animate(now / 1000)
@@ -98,5 +100,5 @@ export function createPresentation({runner, ui, content, objects, scene, show, h
         ui.searchHint((hintLevel >= 3 ? 'Ищи светящуюся голову · ' : '') + arrow)
       }
     },
-    dispose() {gestures.dispose(); breakup.reset(); modelLoading.dispose(); finale.dispose(); sequence.dispose(); choice.dispose(); off(); telemetry(); debug.dispose(); effects.reset(); audio.dispose()}}
+    dispose() {gestures.dispose(); breakup.reset(); modelLoading.dispose(); propLoading.dispose(); finale.dispose(); sequence.dispose(); choice.dispose(); off(); telemetry(); debug.dispose(); effects.reset(); audio.dispose()}}
 }
