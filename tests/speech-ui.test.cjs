@@ -24,6 +24,7 @@ function fixture(supported = true, options = {}, setupDocument = () => {}) {
   const synth = {getVoices: () => [{lang: 'ru-RU'}], cancel: () => {queue.length = 0}, resume() {}, speak: u => queue.push(u)}
   const effects = {unlock() {}, stop() {}, dispose() {}, play(name, done) { done() }}
   const context = {createButtonCarousel: () => ({refresh() {}, dispose() {}}), options, createPixelAudio: () => effects, document, window: supported ? {speechSynthesis: synth, SpeechSynthesisUtterance: function(text) {this.text = text}} : {}, setTimeout: options.timers?.setTimer || (() => 1), clearTimeout: options.timers?.clearTimer || (() => {})}
+  if (options.audioClass) context.window.Audio = options.audioClass
   vm.createContext(context)
   vm.runInContext(fs.readFileSync(require.resolve('../platform/ui/quest-ui.js'), 'utf8').replace(/^import[^\n]*\n/m, '').replace('export function', 'function') + '\nthis.ui = createUI(() => {}, {createAudio: createPixelAudio, ...options})', context)
   return {ui: context.ui, root: document.body.children[0], document, queue, effects}
@@ -158,4 +159,63 @@ test('overlay lines expire individually after five seconds and dispose cancels p
   f.ui.render({system:'Третья\nЧетвёртая',showText:true})
   f.ui.dispose()
   assert.equal(timers.pending(),0)
+})
+
+test('local recordings work without browser synthesis; queue, repeat, cancellation and late errors are isolated', async () => {
+  const clips = []
+  class Audio {
+    constructor(src) {this.src=src; clips.push(this)}
+    play() {this.started=true; this.onplaying(); return Promise.resolve()}
+    pause() {this.paused=true}
+    removeAttribute() {this.src=''}
+    load() {}
+  }
+  const f=fixture(false, {audioClass:Audio, resolveSpeechAudio:(speaker,text)=>speaker+'/'+text+'.wav'})
+  const enable=f.root.querySelector('.quest-enable')
+  assert.equal(enable.hidden,false)
+  f.ui.render({system:'Первая. Вторая.',character:'Привет!'})
+  assert.equal(clips.length,0,'No playback or loading before activation')
+  enable.events.click()
+  assert.equal(clips.length,3)
+  assert.equal(clips[0].src,'Система/Первая..wav')
+  assert.equal(clips[0].started,true)
+  assert.equal(clips[1].started,undefined)
+  clips[0].onended()
+  assert.equal(clips[1].started,true)
+  clips[1].onended()
+  assert.equal(clips[2].started,true)
+  const old=clips[2]
+  f.ui.render({character:'Новая.'})
+  assert.equal(old.paused,true)
+  old.onerror()
+  assert.equal(f.root.querySelector('.quest-character').hidden,true,'Stale error changed current playback')
+  clips.at(-1).onerror()
+  assert.equal(f.root.querySelector('.quest-character').hidden,false)
+  f.root.querySelector('.quest-repeat').events.click()
+  assert.equal(clips.at(-1).started,true)
+  f.document.hidden=true
+  f.document.events.visibilitychange()
+  assert.equal(clips.at(-1).paused,true)
+  f.ui.dispose()
+})
+
+test('missing local recordings and rejected playback show text without falling back to browser voices', async () => {
+  class Audio {
+    play() {return Promise.reject(new Error('Blocked'))}
+    pause() {}
+    removeAttribute() {}
+    load() {}
+  }
+  const missing=fixture(true, {audioClass:Audio, resolveSpeechAudio:()=>null})
+  missing.ui.render({system:'Нет записи.'})
+  missing.root.querySelector('.quest-enable').events.click()
+  assert.equal(missing.queue.length,0)
+  assert.equal(missing.root.querySelector('.quest-system').hidden,false)
+  missing.ui.dispose()
+  const rejected=fixture(false, {audioClass:Audio, resolveSpeechAudio:()=>'/clip.wav'})
+  rejected.ui.render({character:'Привет.'})
+  rejected.root.querySelector('.quest-enable').events.click()
+  await Promise.resolve()
+  assert.equal(rejected.root.querySelector('.quest-character').hidden,false)
+  rejected.ui.dispose()
 })

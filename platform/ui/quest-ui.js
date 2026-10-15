@@ -3,7 +3,7 @@ const silentAudio = () => ({unlock() {}, stop() {}, dispose() {}, play(_name, do
 
 export function createUI(onAction, {
   title = 'AR Quest', createAudio = silentAudio,
-  formatActionLabel = label => label, formatSpeech = text => text,
+  formatActionLabel = label => label, formatSpeech = text => text, resolveSpeechAudio = null,
 } = {}) {
   const root = document.createElement('section')
   root.className = 'quest-ui'
@@ -101,7 +101,9 @@ export function createUI(onAction, {
   const repeat = root.querySelector('.quest-repeat')
   const text = root.querySelector('.quest-text')
   const synth = window.speechSynthesis
-  const supported = Boolean(synth && window.SpeechSynthesisUtterance)
+  const localSpeech = Boolean(resolveSpeechAudio && window.Audio)
+  const browserSpeech = Boolean(synth && window.SpeechSynthesisUtterance)
+  const supported = localSpeech || browserSpeech
   const effects = createAudio()
   let enabled = false
   let showText = !supported
@@ -158,9 +160,12 @@ export function createUI(onAction, {
   function stopSpeech() {
     generation += 1
     clearTimeout(watchdog)
+    for (const clip of pending) {
+      if (clip.localAudio) { clip.pause(); clip.removeAttribute('src'); clip.load() }
+    }
     pending = []
     effects.stop()
-    if (supported) synth.cancel()
+    if (browserSpeech) synth.cancel()
   }
   function fail() {
     stopSpeech()
@@ -170,9 +175,9 @@ export function createUI(onAction, {
   }
   function speak() {
     stopSpeech()
-    if (!enabled || disposed) return
+    if (!enabled || !supported || disposed) return
     const token = generation
-    const voices = synth.getVoices().filter(voice => /^ru([_-]|$)/i.test(voice.lang))
+    const voices = browserSpeech && !localSpeech ? synth.getVoices().filter(voice => /^ru([_-]|$)/i.test(voice.lang)) : []
     const lines = [['Система', current.system, current.systemCue || 'notification'], ['Персонаж', current.character, 'character']].filter(([, line]) => line)
     repeat.hidden = !lines.length
     carousel.refresh()
@@ -185,13 +190,23 @@ export function createUI(onAction, {
       const start = () => {
         if (token !== generation || disposed) return
         watchdog = setTimeout(fail, 10000)
-        try { synth.resume(); synth.speak(utterance) } catch (_) { fail() }
+        try {
+          if (utterance.localAudio) {
+            const playing = utterance.play()
+            playing?.catch(() => { if (token === generation && !disposed) fail() })
+          } else { synth.resume(); synth.speak(utterance) }
+        } catch (_) { fail() }
       }
       if (utterance.cue) effects.play(utterance.cue, start)
       else start()
     }
-    pending = lines.flatMap(([speaker, line, cue]) => line.split(/\n+|(?<=[.!?])\s+/).filter(part => part.trim()).map((part, partIndex) => {
-      const utterance = new window.SpeechSynthesisUtterance(formatSpeech(part))
+    try { pending = lines.flatMap(([speaker, line, cue]) => line.split(/\n+|(?<=[.!?])\s+/).filter(part => part.trim()).map((part, partIndex) => {
+      const spoken = formatSpeech(part.trim())
+      const url = localSpeech ? resolveSpeechAudio(speaker, spoken) : null
+      if (localSpeech && !url) throw new Error('Missing local speech recording')
+      const utterance = localSpeech ? new window.Audio(url) : new window.SpeechSynthesisUtterance(spoken)
+      utterance.localAudio = localSpeech
+      if (localSpeech) utterance.preload = 'none'
       utterance.cue = partIndex === 0 ? cue : null
       utterance.lang = 'ru-RU'
       utterance.rate = speaker === 'Система' ? 0.95 : 1
@@ -204,6 +219,7 @@ export function createUI(onAction, {
         watchdog = setTimeout(fail, 60000)
         message(audioStatus, speaker + ' говорит…')
       }
+      if (localSpeech) utterance.onplaying = utterance.onstart
       utterance.onerror = () => { if (token === generation && !disposed) fail() }
       utterance.onend = () => {
         if (token !== generation || disposed) return
@@ -213,8 +229,9 @@ export function createUI(onAction, {
           message(audioStatus, '')
         } else { index += 1; playNext() }
       }
+      if (localSpeech) utterance.onended = utterance.onend
       return utterance
-    }))
+    })) } catch (_) { fail(); return }
     if (!pending.length) return
     playNext()
   }

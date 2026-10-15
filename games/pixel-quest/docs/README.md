@@ -123,3 +123,5 @@ Before changing gameplay logic:
 - [Проверка на телефоне](episodes/null-escape/ACCEPTANCE_CRITERIA.md).
 
 Открытие: `?episode=null-escape`; стандартный Episode 01 и `?episode=ar-initiation` сохранены.
+
+- [Локальная озвучка и повторная генерация записей](LOCAL_VOICES.md).

@@ -1,3 +1,5 @@
+import voiceManifest from '../assets/voices/ru-RU/manifest.json'
+import {formatSpeech, speechKey} from '../audio/speech-text'
 import {createMechanicRegistry} from '../../../platform/core/mechanic-registry'
 import {sequenceMechanic} from '../../../platform/modules/mechanics/sequence'
 import {chooseMechanic} from '../../../platform/modules/mechanics/choose'
@@ -25,5 +27,9 @@ export const createGameUI = onAction => createUI(onAction, {
   title: game.title,
   createAudio: game.modules.audio.create,
   formatActionLabel: label => label.replace('Журнал прочитан', 'Журнал прослушан').replace('Файл прочитан', 'Файл прослушан'),
-  formatSpeech: text => text.replace(/^SYSTEM:/, 'Система.').replace(/^UNKNOWN USER:/, 'Неизвестный пользователь.'),
+  formatSpeech,
+  resolveSpeechAudio: (speaker, text) => {
+    const clip = voiceManifest.clips[speechKey(speaker, text)]
+    return clip ? './assets/voices/ru-RU/' + clip.file : null
+  },
 })

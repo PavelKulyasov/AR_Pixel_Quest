@@ -12,12 +12,16 @@ function collect(filename) {
   filename = path.resolve(filename)
   const id = path.relative(root, filename).replaceAll('\\', '/')
   if (modules.has(id)) return id
+  if (filename.endsWith('.json')) {
+    modules.set(id, 'module.exports=' + JSON.stringify(JSON.parse(fs.readFileSync(filename, 'utf8'))))
+    return id
+  }
   modules.set(id, '')
   let {code} = babel.transformSync(fs.readFileSync(filename, 'utf8'), {
     filename, presets: [['@babel/preset-env', {targets: {chrome: '100'}, modules: 'commonjs'}]],
   })
   code = code.replace(/require\("([^"]+)"\)/g, (_, name) => {
-    const dependency = collect(path.resolve(path.dirname(filename), name + '.js'))
+    const dependency = collect(path.resolve(path.dirname(filename), name.endsWith('.json') ? name : name + '.js'))
     return 'require(' + JSON.stringify(dependency) + ')'
   })
   modules.set(id, code)

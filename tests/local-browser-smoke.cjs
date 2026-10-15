@@ -14,8 +14,16 @@ async function run(){
  let id=0;const pending=new Map();const requests=[];const failed=[]
  socket.addEventListener('message',e=>{const msg=JSON.parse(e.data);if(msg.id){pending.get(msg.id)?.(msg.result);pending.delete(msg.id)}if(msg.method==='Network.requestWillBeSent')requests.push(msg.params.request.url);if(msg.method==='Network.loadingFailed')failed.push(msg.params.errorText)})
  const send=(method,params={})=>new Promise(resolve=>{const n=++id;pending.set(n,resolve);socket.send(JSON.stringify({id:n,method,params}))})
- await send('Network.enable');await send('Page.enable');await send('Page.navigate',{url:'http://127.0.0.1:18239/'})
+ await send('Network.enable');await send('Page.enable');
+ if(process.argv.includes('--voices')) await send('Page.addScriptToEvaluateOnNewDocument',{source:`window.__voicePlaying=false;window.__voiceEvents=[]; const NativeAudio=window.Audio; window.Audio=function(src){const audio=new NativeAudio(src); for(const event of ['error','loadedmetadata','canplay','play','playing','waiting','ended'])audio.addEventListener(event,()=>window.__voiceEvents.push([event,audio.error?.code,audio.error?.message]));audio.addEventListener('playing',()=>{window.__voicePlaying=true}); return audio}; window.Audio.prototype=NativeAudio.prototype;`});await send('Page.navigate',{url:'http://127.0.0.1:18239/'})
  await delay(18000)
+ if(process.argv.includes('--voices')) {
+   await send('Runtime.evaluate',{expression:`document.querySelector('.quest-enable').click()`,userGesture:true});
+   await delay(3000);
+   const voice=await send('Runtime.evaluate',{expression:'window.__voicePlaying',returnByValue:true});
+   if(!voice.result?.value) { console.log('VOICE DEBUG', JSON.stringify(await send('Runtime.evaluate',{expression:`JSON.stringify({events:window.__voiceEvents,text:document.body.innerText,pressed:document.querySelector('.quest-enable')?.getAttribute('aria-pressed'),enabled:navigator.userActivation?.hasBeenActive})`,returnByValue:true}))); console.log('WAV requests',requests.filter(u=>u.includes('.wav'))); throw new Error('Local WAV did not start playback') }
+   console.log('PASS: local WAV playback started in real Chrome');
+ }
  const result=await send('Runtime.evaluate',{expression:'JSON.stringify({xr:!!window.XR8,controller:!!window.XR8?.XrController,extras:!!window.XRExtras,landing:!!window.LandingPage,text:document.body.innerText.slice(0,500)})',returnByValue:true})
  console.log('Runtime:',result.result?.value)
  console.log('HTTP requests:',JSON.stringify(requests.filter(u=>/^https?:/.test(u)),null,2));console.log('Failed:',failed)

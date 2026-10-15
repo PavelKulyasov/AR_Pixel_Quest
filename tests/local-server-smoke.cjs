@@ -1,4 +1,4 @@
-﻿const assert = require('node:assert/strict')
+const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const {spawn} = require('node:child_process')
@@ -27,6 +27,12 @@ async function run() {
       assert.equal(response.status, 200, url)
       assert.equal(Buffer.compare(Buffer.from(await response.arrayBuffer()), fs.readFileSync(path.join(dir,file))), 0, url)
     }
+  }
+  const voices = JSON.parse(fs.readFileSync(path.join(root, 'local-server/public/assets/voices/ru-RU/manifest.json'), 'utf8'))
+  for (const clip of Object.values(voices.clips)) {
+    const response = await fetch(origin + '/assets/voices/ru-RU/' + clip.file, {method:'HEAD'})
+    assert.equal(response.status, 200, clip.file)
+    assert.equal(response.headers.get('content-type'), 'audio/wav')
   }
   assert.equal((await fetch(origin + '/missing-file')).status, 404)
   assert.equal((await fetch(origin + '/index.html', {method:'POST'})).status, 405)
