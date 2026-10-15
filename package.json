@@ -7,7 +7,8 @@
     "serve": "webpack-dev-server --mode=development --config config/webpack.config.js",
     "test": "node --test tests/*.test.cjs",
     "test:browser": "node tests/browser-smoke.cjs",
-    "test:mechanics:browser": "node tests/mechanics-browser-smoke.cjs"
+    "test:mechanics:browser": "node tests/mechanics-browser-smoke.cjs",
+    "prepare:local": "node scripts/prepare-local-server.cjs"
   },
   "devDependencies": {
     "@babel/parser": "^7.23.9",

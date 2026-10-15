@@ -1,0 +1,6 @@
+﻿https://quest.lan {
+    tls internal
+    root * ./public
+    encode gzip
+    file_server
+}

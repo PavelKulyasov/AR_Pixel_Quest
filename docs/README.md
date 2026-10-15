@@ -21,3 +21,5 @@
 - [«Побег Нулика»: архитектура Phase 1–7 и границы реализации](../games/pixel-quest/docs/episodes/null-escape/ARCHITECTURE.md).
 
 - [Ссылки на проекты, режимы и диагностику](../PROJECT_LINKS.md).
+
+- [Подготовка локального сервера без CDN](../server/local/README.md): выполните npm.cmd run prepare:local; готовый комплект появится в local-server/.

@@ -98,6 +98,8 @@ module.exports = (env = {}) => {
         patterns: [
           {
             from: path.join(rootPath, 'external'),
+            // Vendor artifacts must retain the original bytes and license notices.
+            info: {minimized: true},
             to: path.join(distPath, 'external'),
             noErrorOnMissing: true,
           },
